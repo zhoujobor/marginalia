@@ -1,0 +1,19 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#15130F"/>
+      <stop offset="100%" stop-color="#0E0D0B"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#E8C97E"/>
+      <stop offset="100%" stop-color="#D4A24C"/>
+    </linearGradient>
+  </defs>
+  <!-- Full-bleed background for maskable safe zone -->
+  <rect width="512" height="512" fill="url(#bg)"/>
+  <!-- The M letterform, centered within the 80% safe zone -->
+  <g transform="translate(80, 80) scale(0.6875)">
+    <path d="M140 360 L140 168 L188 168 L256 280 L324 168 L372 168 L372 360 L332 360 L332 232 L268 336 L244 336 L180 232 L180 360 Z" fill="url(#gold)"/>
+    <circle cx="384" cy="136" r="20" fill="#6FB2B2"/>
+  </g>
+</svg>
