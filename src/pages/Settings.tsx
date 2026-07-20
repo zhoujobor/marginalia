@@ -21,7 +21,9 @@ export function Settings() {
   const chatSessions = useStore((s) => s.chatSessions);
   const logout = useStore((s) => s.logout);
   const resetDemoData = useStore((s) => s.resetDemoData);
+  const clearAllData = useStore((s) => s.clearAllData);
   const [confirmReset, setConfirmReset] = useState(false);
+  const [confirmClear, setConfirmClear] = useState(false);
   const [confirmLogout, setConfirmLogout] = useState(false);
 
   return (
@@ -93,18 +95,33 @@ export function Settings() {
 
           {/* Data management */}
           <Section title="数据管理" icon={<RefreshCw size={14} />}>
-            <div className="editorial-card p-5">
-              <h4 className="font-display text-base text-paper mb-2">重置演示数据</h4>
-              <p className="text-sm text-smoke leading-relaxed mb-4">
-                清除所有自定义内容，恢复初始的 3 个项目与 11 条笔记。此操作无法撤销。
-              </p>
-              <button
-                onClick={() => setConfirmReset(true)}
-                className="btn-ghost text-crimson-100 border-crimson/30 hover:bg-crimson-200/5 hover:border-crimson/50"
-              >
-                <RefreshCw size={12} />
-                重置演示数据
-              </button>
+            <div className="editorial-card p-5 space-y-6">
+              <div>
+                <h4 className="font-display text-base text-paper mb-2">恢复演示数据</h4>
+                <p className="text-sm text-smoke leading-relaxed mb-3">
+                  将清空所有内容，恢复为初始的 3 个项目与 11 条笔记供体验。此操作无法撤销。
+                </p>
+                <button
+                  onClick={() => setConfirmReset(true)}
+                  className="btn-ghost text-gold-100 border-gold/30 hover:bg-gold/5 hover:border-gold/50"
+                >
+                  <RefreshCw size={12} />
+                  恢复演示数据
+                </button>
+              </div>
+              <div className="border-t border-paper/8 pt-6">
+                <h4 className="font-display text-base text-paper mb-2">清空所有数据</h4>
+                <p className="text-sm text-smoke leading-relaxed mb-3">
+                  删除所有笔记、项目、对话与文档，恢复到全新状态。此操作无法撤销。
+                </p>
+                <button
+                  onClick={() => setConfirmClear(true)}
+                  className="btn-ghost text-crimson-100 border-crimson/30 hover:bg-crimson-200/5 hover:border-crimson/50"
+                >
+                  <RefreshCw size={12} />
+                  清空所有数据
+                </button>
+              </div>
             </div>
           </Section>
 
@@ -148,14 +165,30 @@ export function Settings() {
       {/* Confirm reset */}
       {confirmReset && (
         <ConfirmDialog
-          title="重置演示数据？"
+          title="恢复演示数据？"
           desc="所有自定义笔记、项目、对话与文档将被清除，恢复至初始演示数据。此操作无法撤销。"
-          confirmLabel="确认重置"
-          variant="crimson"
+          confirmLabel="确认恢复"
+          variant="gold"
           onCancel={() => setConfirmReset(false)}
           onConfirm={() => {
             resetDemoData();
             setConfirmReset(false);
+            window.location.href = '/';
+          }}
+        />
+      )}
+
+      {/* Confirm clear all */}
+      {confirmClear && (
+        <ConfirmDialog
+          title="清空所有数据？"
+          desc="所有笔记、项目、对话与文档将被永久删除，恢复到全新状态。此操作无法撤销。"
+          confirmLabel="确认清空"
+          variant="crimson"
+          onCancel={() => setConfirmClear(false)}
+          onConfirm={() => {
+            clearAllData();
+            setConfirmClear(false);
             window.location.href = '/';
           }}
         />

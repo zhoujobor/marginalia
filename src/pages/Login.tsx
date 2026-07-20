@@ -6,8 +6,8 @@ import { useStore } from '@/store/useStore';
 export function LoginPage() {
   const login = useStore((s) => s.login);
   const navigate = useNavigate();
-  const [email, setEmail] = useState('demo@marginalia.app');
-  const [name, setName] = useState('陆衡');
+  const [email, setEmail] = useState('');
+  const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -89,7 +89,7 @@ export function LoginPage() {
           </p>
           <h2 className="font-display text-3xl text-paper mb-2">进入工作台</h2>
           <p className="text-sm text-smoke mb-8">
-            演示账号已预填，直接点击即可开始体验。
+            输入邮箱开始使用你的个人工作笔记。
           </p>
 
           <form onSubmit={handleSubmit} className="space-y-5">
@@ -147,12 +147,12 @@ export function LoginPage() {
 
           <div className="mt-12 pt-6 border-t border-paper/8">
             <p className="text-2xs font-mono text-smoke uppercase tracking-wide-2 mb-3">
-              内置演示数据
+              数据安全
             </p>
             <ul className="text-xs text-smoke space-y-1.5">
-              <li>· 3 个项目（Atlas 商城重构 / Orion 数据中台 / Lyra 客户增长）</li>
-              <li>· 11 条结构化工作笔记</li>
-              <li>· 内置 AI 引擎，无需联网</li>
+              <li>· 所有数据保存在浏览器本地</li>
+              <li>· 无需服务器，无需上传</li>
+              <li>· 内置 AI 引擎，离线可用</li>
             </ul>
           </div>
         </div>

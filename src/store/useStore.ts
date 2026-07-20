@@ -64,6 +64,7 @@ interface AppState {
 
   // Actions: Data management
   resetDemoData: () => void;
+  clearAllData: () => void;
 }
 
 const genId = (prefix: string) => `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
@@ -97,13 +98,9 @@ export const useStore = create<AppState>()(
           name: name || email.split('@')[0] || '使用者',
           createdAt: Date.now(),
         };
-        // 首次登录：注入演示数据
-        const isFirstTime = get().projects.length === 0;
         set({
           currentUser: user,
           isAuthenticated: true,
-          projects: isFirstTime ? SEED_PROJECTS : get().projects,
-          notes: isFirstTime ? SEED_NOTES : get().notes,
         });
       },
 
@@ -365,6 +362,17 @@ export const useStore = create<AppState>()(
         set({
           projects: SEED_PROJECTS,
           notes: SEED_NOTES,
+          documents: [],
+          chatSessions: [],
+          chatMessages: [],
+          currentChatSessionId: null,
+        });
+      },
+
+      clearAllData: () => {
+        set({
+          projects: [],
+          notes: [],
           documents: [],
           chatSessions: [],
           chatMessages: [],
