@@ -13,11 +13,21 @@ import type {
 } from '@/types';
 import { SEED_USER, SEED_PROJECTS, SEED_NOTES } from '@/lib/seed';
 import { aiEngine } from '@/lib/ai-engine';
+import { isConfigured, auth } from '@/lib/firebase';
+import { firestoreSync } from '@/lib/firestore-sync';
+import {
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signOut as firebaseSignOut,
+  onAuthStateChanged,
+  type User as FirebaseUser,
+} from 'firebase/auth';
 
 interface AppState {
   // 认证
   currentUser: User | null;
   isAuthenticated: boolean;
+  firebaseInitialized: boolean;
 
   // 数据
   projects: Project[];
@@ -32,8 +42,11 @@ interface AppState {
   commandPaletteOpen: boolean;
 
   // Actions: Auth
-  login: (email: string, name?: string) => void;
-  logout: () => void;
+  login: (email: string, name?: string) => Promise<void>;
+  register: (email: string, password: string, name?: string) => Promise<void>;
+  loginWithEmail: (email: string, password: string) => Promise<void>;
+  logout: () => Promise<void>;
+  initAuth: () => () => void;
 
   // Actions: Projects
   createProject: (input: Partial<Project>) => Project;
@@ -81,6 +94,7 @@ export const useStore = create<AppState>()(
     (set, get) => ({
       currentUser: null,
       isAuthenticated: false,
+      firebaseInitialized: false,
       projects: [],
       notes: [],
       documents: [],
@@ -91,7 +105,52 @@ export const useStore = create<AppState>()(
       commandPaletteOpen: false,
 
       // ========== Auth ==========
-      login: (email, name) => {
+      initAuth: () => {
+        if (!isConfigured || !auth) {
+          set({ firebaseInitialized: true });
+          return () => {};
+        }
+
+        const unsubscribe = onAuthStateChanged(auth, async (firebaseUser: FirebaseUser | null) => {
+          if (firebaseUser) {
+            const { projects, notes, documents, chatSessions, chatMessages } =
+              await firestoreSync.pullAll(firebaseUser.uid);
+
+            const user: User = {
+              id: firebaseUser.uid,
+              email: firebaseUser.email || '',
+              name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || '使用者',
+              createdAt: firebaseUser.metadata.creationTime
+                ? new Date(firebaseUser.metadata.creationTime).getTime()
+                : Date.now(),
+            };
+
+            set({
+              currentUser: user,
+              isAuthenticated: true,
+              firebaseInitialized: true,
+              projects,
+              notes,
+              documents,
+              chatSessions,
+              chatMessages,
+            });
+          } else {
+            set({
+              currentUser: null,
+              isAuthenticated: false,
+              firebaseInitialized: true,
+            });
+          }
+        });
+
+        return unsubscribe;
+      },
+
+      login: async (email, name) => {
+        if (isConfigured && auth) {
+          throw new Error('请使用邮箱密码登录或注册新账号');
+        }
         const user: User = {
           id: genId('user'),
           email,
@@ -104,8 +163,45 @@ export const useStore = create<AppState>()(
         });
       },
 
-      logout: () => {
-        set({ currentUser: null, isAuthenticated: false, currentChatSessionId: null });
+      register: async (email, password, name) => {
+        if (!isConfigured || !auth) {
+          throw new Error('Firebase 未配置');
+        }
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        const user: User = {
+          id: userCredential.user.uid,
+          email: email,
+          name: name || email.split('@')[0] || '使用者',
+          createdAt: Date.now(),
+        };
+        await firestoreSync.pushUser(user);
+        set({
+          currentUser: user,
+          isAuthenticated: true,
+        });
+      },
+
+      loginWithEmail: async (email, password) => {
+        if (!isConfigured || !auth) {
+          throw new Error('Firebase 未配置');
+        }
+        await signInWithEmailAndPassword(auth, email, password);
+      },
+
+      logout: async () => {
+        if (isConfigured && auth) {
+          await firebaseSignOut(auth);
+        }
+        set({
+          currentUser: null,
+          isAuthenticated: false,
+          currentChatSessionId: null,
+          projects: [],
+          notes: [],
+          documents: [],
+          chatSessions: [],
+          chatMessages: [],
+        });
       },
 
       // ========== Projects ==========
@@ -123,6 +219,7 @@ export const useStore = create<AppState>()(
           updatedAt: Date.now(),
         };
         set((s) => ({ projects: [...s.projects, project] }));
+        if (isConfigured) firestoreSync.pushProject(project).catch(console.error);
         return project;
       },
 
@@ -132,6 +229,10 @@ export const useStore = create<AppState>()(
             p.id === id ? { ...p, ...patch, updatedAt: Date.now() } : p,
           ),
         }));
+        if (isConfigured) {
+          const updated = get().projects.find((p) => p.id === id);
+          if (updated) firestoreSync.pushProject(updated).catch(console.error);
+        }
       },
 
       deleteProject: (id) => {
@@ -141,6 +242,9 @@ export const useStore = create<AppState>()(
             n.projectId === id ? { ...n, projectId: null } : n,
           ),
         }));
+        if (isConfigured) {
+          firestoreSync.deleteProject(id).catch(console.error);
+        }
       },
 
       // ========== Notes ==========
@@ -151,7 +255,6 @@ export const useStore = create<AppState>()(
         const plainText = input.plainText || stripHtml(content);
         const title = input.title || '无标题';
 
-        // 自动 AI 分析
         const analysis = aiEngine.analyzeNote(
           plainText,
           title,
@@ -178,6 +281,7 @@ export const useStore = create<AppState>()(
           updatedAt: now,
         };
         set((s) => ({ notes: [note, ...s.notes] }));
+        if (isConfigured) firestoreSync.pushNote(note).catch(console.error);
         return note;
       },
 
@@ -186,7 +290,6 @@ export const useStore = create<AppState>()(
           notes: s.notes.map((n) => {
             if (n.id !== id) return n;
             const next = { ...n, ...patch, updatedAt: Date.now() };
-            // 如果内容变化，重新生成 plainText 与 AI 分析
             if (patch.content !== undefined) {
               next.plainText = patch.plainText || stripHtml(patch.content);
               const analysis = aiEngine.analyzeNote(
@@ -202,6 +305,10 @@ export const useStore = create<AppState>()(
             return next;
           }),
         }));
+        if (isConfigured) {
+          const updated = get().notes.find((n) => n.id === id);
+          if (updated) firestoreSync.pushNote(updated).catch(console.error);
+        }
       },
 
       deleteNote: (id) => {
@@ -209,6 +316,7 @@ export const useStore = create<AppState>()(
           notes: s.notes.filter((n) => n.id !== id),
           chatMessages: s.chatMessages,
         }));
+        if (isConfigured) firestoreSync.deleteNote(id).catch(console.error);
       },
 
       filterNotes: (filter) => {
@@ -273,16 +381,19 @@ export const useStore = create<AppState>()(
           chatSessions: [session, ...s.chatSessions],
           currentChatSessionId: id,
         }));
+        if (isConfigured) firestoreSync.pushChatSession(session).catch(console.error);
         return id;
       },
 
       deleteChatSession: (id) => {
+        const userId = get().currentUser?.id || 'user_demo';
         set((s) => ({
           chatSessions: s.chatSessions.filter((x) => x.id !== id),
           chatMessages: s.chatMessages.filter((m) => m.sessionId !== id),
           currentChatSessionId:
             s.currentChatSessionId === id ? null : s.currentChatSessionId,
         }));
+        if (isConfigured) firestoreSync.deleteChatSession(id, userId).catch(console.error);
       },
 
       renameChatSession: (id, title) => {
@@ -291,6 +402,10 @@ export const useStore = create<AppState>()(
             x.id === id ? { ...x, title, updatedAt: Date.now() } : x,
           ),
         }));
+        if (isConfigured) {
+          const updated = get().chatSessions.find((s) => s.id === id);
+          if (updated) firestoreSync.pushChatSession(updated).catch(console.error);
+        }
       },
 
       setCurrentChatSession: (id) => set({ currentChatSessionId: id }),
@@ -302,6 +417,7 @@ export const useStore = create<AppState>()(
           createdAt: Date.now(),
         };
         set((s) => ({ chatMessages: [...s.chatMessages, message] }));
+        if (isConfigured) firestoreSync.pushChatMessage(message).catch(console.error);
         return message;
       },
 
@@ -340,6 +456,10 @@ export const useStore = create<AppState>()(
             x.id === sessionId ? { ...x, updatedAt: Date.now() } : x,
           ),
         }));
+        if (isConfigured) {
+          const updated = get().chatSessions.find((s) => s.id === sessionId);
+          if (updated) firestoreSync.pushChatSession(updated).catch(console.error);
+        }
       },
 
       // ========== UI ==========
@@ -354,6 +474,7 @@ export const useStore = create<AppState>()(
           generatedAt: Date.now(),
         };
         set((s) => ({ documents: [...s.documents, document] }));
+        if (isConfigured) firestoreSync.pushDocument(document).catch(console.error);
         return document;
       },
 

@@ -1,23 +1,46 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Sparkles, Mail, ArrowRight, BookOpen, FolderKanban, MessagesSquare } from 'lucide-react';
+import { Sparkles, Mail, ArrowRight, BookOpen, FolderKanban, MessagesSquare, Lock, User, Eye, EyeOff } from 'lucide-react';
 import { useStore } from '@/store/useStore';
+import { isConfigured } from '@/lib/firebase';
 
 export function LoginPage() {
   const login = useStore((s) => s.login);
+  const loginWithEmail = useStore((s) => s.loginWithEmail);
+  const register = useStore((s) => s.register);
   const navigate = useNavigate();
+  const [mode, setMode] = useState<'login' | 'register'>('login');
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email) return;
+    if (isConfigured && !password) return;
     setLoading(true);
-    setTimeout(() => {
-      login(email, name);
+    setError('');
+
+    try {
+      if (isConfigured) {
+        if (mode === 'login') {
+          await loginWithEmail(email, password);
+        } else {
+          await register(email, password, name);
+        }
+      } else {
+        await login(email, name);
+      }
       navigate('/');
-    }, 600);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : '操作失败，请重试';
+      setError(msg);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -87,9 +110,11 @@ export function LoginPage() {
           <p className="text-2xs font-mono text-gold-100 uppercase tracking-wide-3 mb-3">
             Sign In
           </p>
-          <h2 className="font-display text-3xl text-paper mb-2">进入工作台</h2>
-          <p className="text-sm text-smoke mb-8">
-            输入邮箱开始使用你的个人工作笔记。
+          <h2 className="font-display text-3xl text-paper mb-2">
+            {mode === 'login' ? '进入工作台' : '创建账号'}
+          </h2>
+          <p className="text-sm text-smoke mb-6">
+            {isConfigured ? '使用邮箱密码登录，数据自动云端同步。' : '输入邮箱开始使用你的个人工作笔记。'}
           </p>
 
           <form onSubmit={handleSubmit} className="space-y-5">
@@ -104,22 +129,60 @@ export function LoginPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
-                  className="w-full bg-transparent border-b border-paper/15 pl-6 py-2 text-paper focus:border-gold/60 focus:outline-none transition-colors"
+                  placeholder="your@email.com"
+                  className="w-full bg-transparent border-b border-paper/15 pl-6 py-2 text-paper placeholder:text-smoke/40 focus:border-gold/60 focus:outline-none transition-colors"
                 />
               </div>
             </div>
 
-            <div>
-              <label className="text-2xs font-mono text-smoke uppercase tracking-wide-2 mb-2 block">
-                称呼（可选）
-              </label>
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="w-full bg-transparent border-b border-paper/15 py-2 text-paper focus:border-gold/60 focus:outline-none transition-colors"
-              />
-            </div>
+            {isConfigured && (
+              <div>
+                <label className="text-2xs font-mono text-smoke uppercase tracking-wide-2 mb-2 block">
+                  密码
+                </label>
+                <div className="relative">
+                  <Lock size={14} className="absolute left-0 top-1/2 -translate-y-1/2 text-smoke" />
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required={isConfigured}
+                    placeholder="••••••••"
+                    className="w-full bg-transparent border-b border-paper/15 pl-6 pr-8 py-2 text-paper placeholder:text-smoke/40 focus:border-gold/60 focus:outline-none transition-colors"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((v) => !v)}
+                    className="absolute right-0 top-1/2 -translate-y-1/2 text-smoke hover:text-paper transition-colors"
+                    tabIndex={-1}
+                  >
+                    {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {mode === 'register' && (
+              <div>
+                <label className="text-2xs font-mono text-smoke uppercase tracking-wide-2 mb-2 block">
+                  称呼（可选）
+                </label>
+                <div className="relative">
+                  <User size={14} className="absolute left-0 top-1/2 -translate-y-1/2 text-smoke" />
+                  <input
+                    type="text"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="你的名字"
+                    className="w-full bg-transparent border-b border-paper/15 pl-6 py-2 text-paper placeholder:text-smoke/40 focus:border-gold/60 focus:outline-none transition-colors"
+                  />
+                </div>
+              </div>
+            )}
+
+            {error && (
+              <p className="text-2xs text-crimson-100 font-mono">{error}</p>
+            )}
 
             <button
               type="submit"
@@ -129,19 +192,47 @@ export function LoginPage() {
               {loading ? (
                 <>
                   <span className="w-3 h-3 border border-ink-700 border-t-transparent rounded-full animate-spin" />
-                  正在准备你的工作区…
+                  请稍候…
                 </>
               ) : (
                 <>
-                  进入工作台
+                  {mode === 'login' ? '登录' : '注册账号'}
                   <ArrowRight size={16} />
                 </>
               )}
             </button>
 
+            {isConfigured && (
+              <p className="text-center text-2xs text-smoke font-mono">
+                {mode === 'login' ? (
+                  <>
+                    还没有账号？{' '}
+                    <button
+                      type="button"
+                      onClick={() => { setMode('register'); setError(''); }}
+                      className="text-gold-100 hover:text-gold-50 hover:underline"
+                    >
+                      注册新账号
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    已有账号？{' '}
+                    <button
+                      type="button"
+                      onClick={() => { setMode('login'); setError(''); }}
+                      className="text-gold-100 hover:text-gold-50 hover:underline"
+                    >
+                      立即登录
+                    </button>
+                  </>
+                )}
+              </p>
+            )}
+
             <div className="flex items-center gap-2 text-2xs text-smoke font-mono">
               <Sparkles size={10} className="text-teal-200" />
-              数据保存在浏览器本地，可随时在设置中重置。
+              {isConfigured ? '数据云端同步，多设备无缝切换' : '数据保存在浏览器本地，可随时在设置中重置。'}
             </div>
           </form>
 

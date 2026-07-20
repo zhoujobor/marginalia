@@ -8,10 +8,13 @@ import {
   Github,
   BookOpen,
   Sparkles,
+  Cloud,
+  CloudOff,
 } from 'lucide-react';
 import { useStore } from '@/store/useStore';
 import { TopBar } from '@/components/TopBar';
 import { relativeTime, formatDate } from '@/lib/format';
+import { isConfigured } from '@/lib/firebase';
 
 export function Settings() {
   const currentUser = useStore((s) => s.currentUser);
@@ -67,9 +70,19 @@ export function Settings() {
               <StatBox label="生成文档" value={documents.length} accent="gold" />
               <StatBox label="AI 对话" value={chatSessions.length} accent="teal" />
             </div>
-            <p className="text-2xs font-mono text-smoke mt-3">
-              所有数据保存在浏览器本地（localStorage），不会上传到服务器。
-            </p>
+            <div className="flex items-center gap-2 mt-3 text-2xs font-mono text-smoke">
+              {isConfigured ? (
+                <>
+                  <Cloud size={12} className="text-teal-300" />
+                  <span>云端同步已开启（Firebase）</span>
+                </>
+              ) : (
+                <>
+                  <CloudOff size={12} />
+                  <span>本地存储模式（仅当前浏览器）</span>
+                </>
+              )}
+            </div>
           </Section>
 
           {/* AI Engine info */}
